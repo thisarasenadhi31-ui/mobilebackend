@@ -47,7 +47,7 @@ export async function getMobilePhotos(): Promise<QueryResult<MobilePhoto>> {
   return { status: "ok", rows: data ?? [] };
 }
 
-export async function syncPhotosToDatabase(payload: SyncPhotosPayload): Promise<QueryResult<MobilePhoto[]>> {
+export async function syncPhotosToDatabase(payload: SyncPhotosPayload): Promise<QueryResult<MobilePhoto>> {
   const supabase = await createClient();
 
   const photosToSync = payload.photos.map((photo) => ({

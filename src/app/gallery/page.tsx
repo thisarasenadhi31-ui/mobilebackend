@@ -17,6 +17,9 @@ export default async function GalleryPage() {
     getMobilePhotos(),
   ]);
 
+  const galleryRows = galleryResult.status === "ok" ? galleryResult.rows : [];
+  const photoRows = photosResult.status === "ok" ? photosResult.rows : [];
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -25,9 +28,7 @@ export default async function GalleryPage() {
         action={
           (galleryResult.status === "ok" || photosResult.status === "ok") ? (
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              {(galleryResult.status === "ok" ? galleryResult.rows.length : 0) +
-                (photosResult.status === "ok" ? photosResult.rows.length : 0)}{" "}
-              images
+              {galleryRows.length + photoRows.length} images
             </span>
           ) : null
         }
@@ -40,11 +41,11 @@ export default async function GalleryPage() {
         <Notice tone="danger" title="Couldn't load the gallery">
           {galleryResult.message}
         </Notice>
-      ) : galleryResult.rows.length === 0 ? null : (
+      ) : galleryRows.length === 0 ? null : (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Published Gallery</h2>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {galleryResult.rows.map((item) => (
+            {galleryRows.map((item) => (
               <GalleryCard key={item.id} item={item} />
             ))}
           </ul>
@@ -58,15 +59,15 @@ export default async function GalleryPage() {
         <Notice tone="danger" title="Couldn't load mobile photos">
           {photosResult.message}
         </Notice>
-      ) : photosResult.rows.length === 0 && galleryResult.rows.length === 0 ? (
+      ) : photoRows.length === 0 && galleryRows.length === 0 ? (
         <Notice title="No images yet">
           Photos synced from the mobile app will appear here.
         </Notice>
-      ) : photosResult.rows.length > 0 ? (
+      ) : photoRows.length > 0 ? (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Synced Mobile Photos</h2>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {photosResult.rows.map((photo) => (
+            {photoRows.map((photo) => (
               <MobilePhotoCard key={photo.id} photo={photo} />
             ))}
           </ul>
