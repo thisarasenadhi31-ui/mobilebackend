@@ -50,7 +50,7 @@ export default async function NotificationsPage() {
 }
 
 function NotificationRow({ notification }: { notification: Notification }) {
-  const { title, body, is_read, created_at } = notification;
+  const { title, text, is_read, created_at } = notification;
 
   return (
     <li className="flex gap-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -80,9 +80,7 @@ function NotificationRow({ notification }: { notification: Notification }) {
           </time>
         </div>
 
-        {body ? (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{body}</p>
-        ) : null}
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">{text}</p>
       </div>
     </li>
   );

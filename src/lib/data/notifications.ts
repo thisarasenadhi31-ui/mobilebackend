@@ -5,18 +5,25 @@ export const NOTIFICATIONS_TABLE = "notifications";
 
 export type Notification = {
   id: string;
+  package: string;
   title: string;
-  body: string | null;
+  text: string;
+  posted_at: number;
+  timestamp: number;
   is_read: boolean;
   created_at: string;
 };
 
 export type SendNotificationPayload = {
+  id: string;
+  package: string;
   title: string;
-  body?: string | null;
+  text: string;
+  postedAt: number;
+  timestamp: number;
 };
 
-const COLUMNS = "id, title, body, is_read, created_at";
+const COLUMNS = "id, package, title, text, posted_at, timestamp, is_read, created_at";
 
 export async function getNotifications(): Promise<QueryResult<Notification>> {
   const supabase = await createClient();
@@ -42,10 +49,43 @@ export async function createNotification(payload: SendNotificationPayload): Prom
   const { data, error } = await supabase
     .from(NOTIFICATIONS_TABLE)
     .insert({
+      id: payload.id,
+      package: payload.package,
       title: payload.title,
-      body: payload.body || null,
+      text: payload.text,
+      posted_at: payload.postedAt,
+      timestamp: payload.timestamp,
       is_read: false,
     })
+    .select(COLUMNS);
+
+  if (error) {
+    return isMissingTable(error.code)
+      ? { status: "missing-table", table: NOTIFICATIONS_TABLE }
+      : { status: "error", message: error.message };
+  }
+
+  return { status: "ok", rows: data ?? [] };
+}
+
+export async function createNotificationsBatch(
+  payloads: SendNotificationPayload[]
+): Promise<QueryResult<Notification>> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .insert(
+      payloads.map((payload) => ({
+        id: payload.id,
+        package: payload.package,
+        title: payload.title,
+        text: payload.text,
+        posted_at: payload.postedAt,
+        timestamp: payload.timestamp,
+        is_read: false,
+      }))
+    )
     .select(COLUMNS);
 
   if (error) {

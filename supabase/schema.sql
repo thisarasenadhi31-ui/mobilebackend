@@ -2,9 +2,12 @@
 -- Run this in the Supabase SQL editor (Dashboard -> SQL Editor -> New query).
 
 create table if not exists public.notifications (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
+  package text not null,
   title text not null,
-  body text,
+  text text not null,
+  posted_at bigint not null,
+  timestamp bigint not null,
   is_read boolean not null default false,
   created_at timestamptz not null default now()
 );

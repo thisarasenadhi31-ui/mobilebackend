@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createNotification, type SendNotificationPayload } from "@/lib/data/notifications";
+import { createNotificationsBatch, type SendNotificationPayload } from "@/lib/data/notifications";
 
 export const runtime = "nodejs";
 
@@ -22,18 +22,43 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!isValidNotificationPayload(body)) {
+    if (!body || typeof body !== "object" || !Array.isArray(body.notifications)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid payload format",
-          error: "Payload must contain id, package, title, text (all strings), and postedAt, timestamp (both numbers)",
+          message: "Invalid batch payload format",
+          error: "Payload must contain a 'notifications' array",
         },
         { status: 400 }
       );
     }
 
-    const result = await createNotification(body);
+    const notifications = body.notifications as unknown[];
+
+    if (notifications.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Empty batch",
+          error: "Notifications array cannot be empty",
+        },
+        { status: 400 }
+      );
+    }
+
+    const invalidNotifications = notifications.filter((n) => !isValidNotificationPayload(n));
+    if (invalidNotifications.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Invalid notification format in batch (${invalidNotifications.length} of ${notifications.length})`,
+          error: "All notifications must contain id, package, title, text (all strings), and postedAt, timestamp (both numbers)",
+        },
+        { status: 400 }
+      );
+    }
+
+    const result = await createNotificationsBatch(notifications as SendNotificationPayload[]);
 
     if (result.status === "error") {
       return NextResponse.json(
@@ -57,18 +82,19 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Notification created successfully",
-      notification: result.rows[0] ?? null,
+      message: `${result.rows.length} notifications created successfully`,
+      count: result.rows.length,
+      notifications: result.rows,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Notification creation error:", error);
+    console.error("Batch notification creation error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to create notification",
+        message: "Failed to create notifications batch",
         error: message,
       },
       { status: 500 }
