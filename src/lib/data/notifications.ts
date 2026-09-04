@@ -11,6 +11,11 @@ export type Notification = {
   created_at: string;
 };
 
+export type SendNotificationPayload = {
+  title: string;
+  body?: string | null;
+};
+
 const COLUMNS = "id, title, body, is_read, created_at";
 
 export async function getNotifications(): Promise<QueryResult<Notification>> {
@@ -21,6 +26,27 @@ export async function getNotifications(): Promise<QueryResult<Notification>> {
     .select(COLUMNS)
     .order("created_at", { ascending: false })
     .limit(100);
+
+  if (error) {
+    return isMissingTable(error.code)
+      ? { status: "missing-table", table: NOTIFICATIONS_TABLE }
+      : { status: "error", message: error.message };
+  }
+
+  return { status: "ok", rows: data ?? [] };
+}
+
+export async function createNotification(payload: SendNotificationPayload): Promise<QueryResult<Notification>> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .insert({
+      title: payload.title,
+      body: payload.body || null,
+      is_read: false,
+    })
+    .select(COLUMNS);
 
   if (error) {
     return isMissingTable(error.code)
