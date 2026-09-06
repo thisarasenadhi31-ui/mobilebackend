@@ -1,39 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createNotification, type SendNotificationPayload } from "@/lib/data/notifications";
+import { createNotification } from "@/lib/data/notifications";
+import { validateNotificationPayload } from "@/lib/validation/notification";
 
 export const runtime = "nodejs";
-
-function isValidNotificationPayload(data: unknown): data is SendNotificationPayload {
-  if (!data || typeof data !== "object") return false;
-
-  const payload = data as Record<string, unknown>;
-
-  if (typeof payload.id !== "string" || payload.id.trim() === "") return false;
-  if (typeof payload.package !== "string" || payload.package.trim() === "") return false;
-  if (typeof payload.title !== "string" || payload.title.trim() === "") return false;
-  if (typeof payload.text !== "string" || payload.text.trim() === "") return false;
-  if (typeof payload.postedAt !== "number" || payload.postedAt < 0) return false;
-  if (typeof payload.timestamp !== "number" || payload.timestamp < 0) return false;
-
-  return true;
-}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!isValidNotificationPayload(body)) {
+    const validation = validateNotificationPayload(body);
+    if (!validation.valid) {
       return NextResponse.json(
         {
           success: false,
           message: "Invalid payload format",
-          error: "Payload must contain id, package, title, text (all strings), and postedAt, timestamp (both numbers)",
+          error: validation.errors.join("; "),
+          errors: validation.errors,
         },
         { status: 400 }
       );
     }
 
-    const result = await createNotification(body);
+    const result = await createNotification(validation.payload);
 
     if (result.status === "error") {
       return NextResponse.json(

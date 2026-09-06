@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createNotificationsBatch, type SendNotificationPayload } from "@/lib/data/notifications";
+import { validateNotificationPayload } from "@/lib/validation/notification";
 
 export const runtime = "nodejs";
-
-function isValidNotificationPayload(data: unknown): data is SendNotificationPayload {
-  if (!data || typeof data !== "object") return false;
-
-  const payload = data as Record<string, unknown>;
-
-  if (typeof payload.id !== "string" || payload.id.trim() === "") return false;
-  if (typeof payload.package !== "string" || payload.package.trim() === "") return false;
-  if (typeof payload.title !== "string" || payload.title.trim() === "") return false;
-  if (typeof payload.text !== "string" || payload.text.trim() === "") return false;
-  if (typeof payload.postedAt !== "number" || payload.postedAt < 0) return false;
-  if (typeof payload.timestamp !== "number" || payload.timestamp < 0) return false;
-
-  return true;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,19 +32,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const invalidNotifications = notifications.filter((n) => !isValidNotificationPayload(n));
-    if (invalidNotifications.length > 0) {
+    const valid: SendNotificationPayload[] = [];
+    const errors: string[] = [];
+
+    notifications.forEach((notification, index) => {
+      const validation = validateNotificationPayload(notification);
+      if (validation.valid) {
+        valid.push(validation.payload);
+      } else {
+        errors.push(...validation.errors.map((error) => `notifications[${index}]: ${error}`));
+      }
+    });
+
+    if (errors.length > 0) {
+      const invalidCount = notifications.length - valid.length;
       return NextResponse.json(
         {
           success: false,
-          message: `Invalid notification format in batch (${invalidNotifications.length} of ${notifications.length})`,
-          error: "All notifications must contain id, package, title, text (all strings), and postedAt, timestamp (both numbers)",
+          message: `Invalid notification format in batch (${invalidCount} of ${notifications.length})`,
+          error: errors.join("; "),
+          errors,
         },
         { status: 400 }
       );
     }
 
-    const result = await createNotificationsBatch(notifications as SendNotificationPayload[]);
+    const result = await createNotificationsBatch(valid);
 
     if (result.status === "error") {
       return NextResponse.json(
