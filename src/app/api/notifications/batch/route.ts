@@ -1,25 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createNotificationsBatch, type SendNotificationPayload } from "@/lib/data/notifications";
 import { validateNotificationPayload } from "@/lib/validation/notification";
+import { readJsonBody, topLevelKeys } from "@/lib/validation/request";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
+    if (!body.ok) {
+      return NextResponse.json(
+        { success: false, message: body.message, error: body.error },
+        { status: 400 }
+      );
+    }
 
-    if (!body || typeof body !== "object" || !Array.isArray(body.notifications)) {
+    const parsed = body.data as Record<string, unknown> | null;
+
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.notifications)) {
       return NextResponse.json(
         {
           success: false,
           message: "Invalid batch payload format",
           error: "Payload must contain a 'notifications' array",
+          receivedKeys: topLevelKeys(body.data),
         },
         { status: 400 }
       );
     }
 
-    const notifications = body.notifications as unknown[];
+    const notifications = parsed.notifications as unknown[];
 
     if (notifications.length === 0) {
       return NextResponse.json(

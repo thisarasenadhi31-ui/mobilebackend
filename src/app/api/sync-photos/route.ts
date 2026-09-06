@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncPhotosToDatabase, type SyncPhotosPayload } from "@/lib/data/photos";
+import { readJsonBody, topLevelKeys } from "@/lib/validation/request";
 
 export const runtime = "nodejs";
 
@@ -26,20 +27,28 @@ function isValidSyncPayload(data: unknown): data is SyncPhotosPayload {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
+    if (!body.ok) {
+      return NextResponse.json(
+        { success: false, message: body.message, error: body.error },
+        { status: 400 }
+      );
+    }
 
-    if (!isValidSyncPayload(body)) {
+    if (!isValidSyncPayload(body.data)) {
       return NextResponse.json(
         {
           success: false,
           message: "Invalid payload format",
           error: "Payload must contain photos array, timestamp, and photoCount",
+          receivedKeys: topLevelKeys(body.data),
         },
         { status: 400 }
       );
     }
 
-    const result = await syncPhotosToDatabase(body);
+    const payload = body.data;
+    const result = await syncPhotosToDatabase(payload);
 
     if (result.status === "error") {
       return NextResponse.json(
@@ -63,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully synced ${body.photoCount} photo(s)`,
+      message: `Successfully synced ${payload.photoCount} photo(s)`,
       syncedCount: result.rows?.length ?? 0,
       timestamp: new Date().toISOString(),
     });

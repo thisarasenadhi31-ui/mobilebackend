@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingTable, type QueryResult } from "@/lib/data/result";
 
 export const NOTIFICATIONS_TABLE = "notifications";
@@ -44,7 +45,7 @@ export async function getNotifications(): Promise<QueryResult<Notification>> {
 }
 
 export async function createNotification(payload: SendNotificationPayload): Promise<QueryResult<Notification>> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from(NOTIFICATIONS_TABLE)
@@ -71,7 +72,7 @@ export async function createNotification(payload: SendNotificationPayload): Prom
 export async function createNotificationsBatch(
   payloads: SendNotificationPayload[]
 ): Promise<QueryResult<Notification>> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from(NOTIFICATIONS_TABLE)

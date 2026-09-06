@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createNotification } from "@/lib/data/notifications";
 import { validateNotificationPayload } from "@/lib/validation/notification";
+import { readJsonBody, topLevelKeys } from "@/lib/validation/request";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
+    if (!body.ok) {
+      return NextResponse.json(
+        { success: false, message: body.message, error: body.error },
+        { status: 400 }
+      );
+    }
 
-    const validation = validateNotificationPayload(body);
+    const validation = validateNotificationPayload(body.data);
     if (!validation.valid) {
       return NextResponse.json(
         {
@@ -16,6 +23,7 @@ export async function POST(request: NextRequest) {
           message: "Invalid payload format",
           error: validation.errors.join("; "),
           errors: validation.errors,
+          receivedKeys: topLevelKeys(body.data),
         },
         { status: 400 }
       );

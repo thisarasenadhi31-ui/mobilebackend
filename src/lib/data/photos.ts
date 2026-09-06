@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingTable, type QueryResult } from "@/lib/data/result";
 
 export const MOBILE_PHOTOS_TABLE = "mobile_photos";
@@ -48,7 +49,7 @@ export async function getMobilePhotos(): Promise<QueryResult<MobilePhoto>> {
 }
 
 export async function syncPhotosToDatabase(payload: SyncPhotosPayload): Promise<QueryResult<MobilePhoto>> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const photosToSync = payload.photos.map((photo) => ({
     photo_id: photo.id,
