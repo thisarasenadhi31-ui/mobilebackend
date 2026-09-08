@@ -54,12 +54,14 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    if (errors.length > 0) {
-      const invalidCount = notifications.length - valid.length;
+    // A batch is only rejected outright when nothing in it is usable. One
+    // malformed entry used to throw away every good notification beside it,
+    // which lost a whole sync from the phone over a single bad field.
+    if (valid.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          message: `Invalid notification format in batch (${invalidCount} of ${notifications.length})`,
+          message: `Invalid notification format in batch (0 of ${notifications.length} usable)`,
           error: errors.join("; "),
           errors,
         },
@@ -89,10 +91,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const skipped = notifications.length - valid.length;
+
     return NextResponse.json({
       success: true,
-      message: `${result.rows.length} notifications created successfully`,
+      message:
+        `${result.rows.length} notifications stored successfully` +
+        (skipped > 0 ? ` (${skipped} skipped as invalid)` : ""),
       count: result.rows.length,
+      received: notifications.length,
+      skipped,
+      // Duplicate ids within one batch collapse to a single row, so a stored
+      // count below `received` is expected when the phone resends its tray.
+      errors: errors.length > 0 ? errors : undefined,
       notifications: result.rows,
       timestamp: new Date().toISOString(),
     });

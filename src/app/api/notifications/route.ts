@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Notification created successfully",
+      message: "Notification stored successfully",
       notification: result.rows[0] ?? null,
       timestamp: new Date().toISOString(),
     });
