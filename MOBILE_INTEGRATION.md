@@ -21,7 +21,8 @@ The PhotoSyncManager sends a JSON payload with the following structure:
       "dateAdded": 1693737600,
       "dateModified": 1693737600,
       "path": "/storage/emulated/0/Pictures/IMG_20250904_120530.jpg",
-      "size": 2048576
+      "size": 2048576,
+      "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAUA...AAAASUVORK5CYII="
     }
   ],
   "timestamp": 1693737600000,
@@ -33,15 +34,33 @@ The PhotoSyncManager sends a JSON payload with the following structure:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `photos` | Array | Array of photo metadata objects |
+| `photos` | Array | Array of photo metadata objects with image bytes |
 | `photos[].id` | Number | Unique photo ID from Android MediaStore |
 | `photos[].displayName` | String | File name of the photo |
 | `photos[].dateAdded` | Number | Unix timestamp (seconds) when photo was added |
 | `photos[].dateModified` | Number | Unix timestamp (seconds) when photo was last modified |
 | `photos[].path` | String | File system path to the photo |
 | `photos[].size` | Number | File size in bytes |
+| `photos[].imageData` | String | Base64-encoded image bytes |
 | `timestamp` | Number | Request timestamp in milliseconds |
 | `photoCount` | Number | Number of photos being synced |
+
+## Encoding Images for Upload
+
+The `imageData` field must contain the **full image file bytes, base64-encoded**. In Kotlin/Android:
+
+```kotlin
+import android.util.Base64
+import java.io.File
+
+val imageFile = File(photoPath)
+val fileBytes = imageFile.readBytes()
+val base64String = Base64.encodeToString(fileBytes, Base64.NO_WRAP)
+
+// Use base64String in the imageData field
+```
+
+**Important**: Use `Base64.NO_WRAP` to exclude line breaks that would break JSON parsing.
 
 ## Integration with PhotoSyncManager
 
@@ -121,9 +140,12 @@ CREATE TABLE mobile_photos (
   size BIGINT NOT NULL,
   date_added BIGINT NOT NULL,
   date_modified BIGINT NOT NULL,
+  image_data BYTEA NOT NULL,
   synced_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+The `image_data` column stores the actual image bytes. All image files are stored directly in the database.
 
 ## Viewing Synced Photos
 
@@ -136,9 +158,31 @@ CREATE TABLE mobile_photos (
    - File size
    - Sync timestamp
 
-### Via API
+### Retrieving Image Files
 
-Fetch synced photos using the Supabase client:
+To retrieve a synced photo by its UUID:
+
+**Endpoint**: `GET /api/photos/[id]`
+
+Returns the image file as binary data with appropriate `Content-Type` header.
+
+**Example**:
+
+```bash
+# Get a photo by UUID
+curl https://your-app.com/api/photos/acc7acb4-5707-4834-9bda-5daa7cad869b \
+  -o photo.jpg
+```
+
+**Response Headers**:
+- `Content-Type`: Auto-detected from filename (e.g., `image/jpeg`, `image/png`)
+- `Content-Length`: Image size in bytes
+- `Cache-Control`: `public, max-age=31536000, immutable` (browser caches indefinitely)
+- `Content-Disposition`: Filename for downloads
+
+### Via API (Metadata Only)
+
+Fetch photo metadata using the Supabase client:
 
 ```typescript
 import { createClient } from "@supabase/supabase-js";
@@ -147,9 +191,11 @@ const supabase = createClient(url, key);
 
 const { data, error } = await supabase
   .from("mobile_photos")
-  .select("*")
+  .select("id, photo_id, display_name, size, synced_at") // Exclude image_data
   .order("synced_at", { ascending: false });
 ```
+
+**Note**: Always exclude `image_data` from SELECT queries when you only need metadata — retrieving full image data for many rows is slow and wasteful. Use the `/api/photos/[id]` endpoint to fetch individual images.
 
 ## Error Handling
 
@@ -164,8 +210,9 @@ The endpoint validates the payload and returns appropriate error codes:
 Common validation errors:
 
 - Missing `photos` array
-- Missing required fields in photo objects
+- Missing required fields in photo objects (including `imageData`)
 - Invalid data types
+- `imageData` not base64-encoded
 
 ## Security Considerations
 
@@ -220,15 +267,20 @@ If syncing large batches of photos, consider:
 
 ## Next Steps
 
-1. **Image Upload**: Currently only metadata is synced. To upload actual images:
-   - Consider using Supabase Storage for image files
-   - Modify PhotoSyncManager to send base64 encoded images or use multipart/form-data
-   - Implement a separate image upload endpoint
-
-2. **Background Sync**: The PhotoFetchWorker is configured to run every 60 minutes
+1. **Background Sync**: The PhotoFetchWorker is configured to run every 60 minutes
    - Update the `SYNC_INTERVAL_MINUTES` constant in GalleryAccessManager
    - Trigger sync when new photos are detected
 
-3. **Push Notifications**: Notify users when sync completes
+2. **Push Notifications**: Notify users when sync completes
    - Implement Firebase Cloud Messaging (FCM)
    - Handle notification taps to open gallery
+
+3. **Database Maintenance**:
+   - Monitor `mobile_photos` table size (each row contains full image bytes)
+   - Consider implementing automatic deletion of old photos
+   - Implement storage quotas per user if needed
+
+4. **Performance**:
+   - Add pagination when syncing large batches to avoid memory issues
+   - Consider compression of stored images to reduce database size
+   - Implement image resizing on the client before sending if network-limited

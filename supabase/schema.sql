@@ -34,6 +34,7 @@ create table if not exists public.mobile_photos (
   size bigint not null,
   date_added bigint not null,
   date_modified bigint not null,
+  image_data bytea not null,
   synced_at timestamptz not null default now(),
   unique(photo_id)
 );

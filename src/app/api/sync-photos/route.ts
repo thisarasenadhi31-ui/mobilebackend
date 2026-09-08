@@ -21,7 +21,8 @@ function isValidSyncPayload(data: unknown): data is SyncPhotosPayload {
     typeof (photo as Record<string, unknown>).dateAdded === "number" &&
     typeof (photo as Record<string, unknown>).dateModified === "number" &&
     typeof (photo as Record<string, unknown>).path === "string" &&
-    typeof (photo as Record<string, unknown>).size === "number"
+    typeof (photo as Record<string, unknown>).size === "number" &&
+    typeof (photo as Record<string, unknown>).imageData === "string"
   );
 }
 

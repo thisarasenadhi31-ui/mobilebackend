@@ -12,6 +12,7 @@ export type MobilePhoto = {
   size: number;
   date_added: number;
   date_modified: number;
+  image_data: string; // Base64 encoded image bytes
   synced_at: string;
 };
 
@@ -23,12 +24,13 @@ export type SyncPhotosPayload = {
     dateModified: number;
     path: string;
     size: number;
+    imageData: string; // Base64 encoded image bytes
   }>;
   timestamp: number;
   photoCount: number;
 };
 
-const COLUMNS = "id, photo_id, display_name, path, size, date_added, date_modified, synced_at";
+const COLUMNS = "id, photo_id, display_name, path, size, date_added, date_modified, image_data, synced_at";
 
 export async function getMobilePhotos(): Promise<QueryResult<MobilePhoto>> {
   const supabase = await createClient();
@@ -58,6 +60,7 @@ export async function syncPhotosToDatabase(payload: SyncPhotosPayload): Promise<
     size: photo.size,
     date_added: photo.dateAdded,
     date_modified: photo.dateModified,
+    image_data: photo.imageData,
   }));
 
   const { data, error } = await supabase
@@ -72,4 +75,26 @@ export async function syncPhotosToDatabase(payload: SyncPhotosPayload): Promise<
   }
 
   return { status: "ok", rows: data ?? [] };
+}
+
+export async function getPhotoById(id: string): Promise<QueryResult<MobilePhoto>> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from(MOBILE_PHOTOS_TABLE)
+    .select(COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    return isMissingTable(error.code)
+      ? { status: "missing-table", table: MOBILE_PHOTOS_TABLE }
+      : { status: "error", message: error.message };
+  }
+
+  if (!data) {
+    return { status: "ok", rows: [] };
+  }
+
+  return { status: "ok", rows: [data] };
 }
