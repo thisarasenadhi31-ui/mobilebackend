@@ -186,6 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Store metadata in database
+    const now = Math.floor(Date.now() / 1000);
     const { data, error: dbError } = await supabase
       .from("mobile_photos")
       .insert({
@@ -195,9 +196,9 @@ export async function POST(request: NextRequest) {
         mimeType: body.mimeType,
         storage_path: storagePath,
         timestamp: body.timestamp,
-        date_added: Math.floor(Date.now() / 1000),
-        date_modified: Math.floor(Date.now() / 1000),
-      })
+        date_added: now,
+        date_modified: now,
+      } as any)
       .select("id, filename, filesize, mimeType, timestamp");
 
     if (dbError) {
