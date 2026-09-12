@@ -2,9 +2,13 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { MissingTableNotice, Notice } from "@/components/notice";
+import { ImageViewer } from "@/components/image-viewer";
+import { DownloadIcon } from "@/components/icons";
 import { getGalleryItems, type GalleryItem } from "@/lib/data/gallery";
 import { getMobilePhotos, type MobilePhoto } from "@/lib/data/photos";
-import { formatDate } from "@/lib/format";
+import { getMobileImages, type MobileImage } from "@/lib/data/images";
+import { formatBytes, formatDate } from "@/lib/format";
+import { isOptimizableImage } from "@/lib/images";
 
 export const metadata: Metadata = {
   title: "Gallery",
@@ -12,13 +16,16 @@ export const metadata: Metadata = {
 };
 
 export default async function GalleryPage() {
-  const [galleryResult, photosResult] = await Promise.all([
+  const [galleryResult, photosResult, imagesResult] = await Promise.all([
     getGalleryItems(),
     getMobilePhotos(),
+    getMobileImages(),
   ]);
 
   const galleryRows = galleryResult.status === "ok" ? galleryResult.rows : [];
   const photoRows = photosResult.status === "ok" ? photosResult.rows : [];
+  const imageRows = imagesResult.status === "ok" ? imagesResult.rows : [];
+  const anyRows = galleryRows.length + photoRows.length + imageRows.length;
 
   return (
     <div className="space-y-8">
@@ -26,9 +33,11 @@ export default async function GalleryPage() {
         title="Gallery"
         description="Images published to the mobile app's photo gallery."
         action={
-          (galleryResult.status === "ok" || photosResult.status === "ok") ? (
+          galleryResult.status === "ok" ||
+          photosResult.status === "ok" ||
+          imagesResult.status === "ok" ? (
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              {galleryRows.length + photoRows.length} images
+              {anyRows} images
             </span>
           ) : null
         }
@@ -52,6 +61,24 @@ export default async function GalleryPage() {
         </div>
       )}
 
+      {/* Uploaded Images Section — POST /api/images/upload */}
+      {imagesResult.status === "missing-table" ? (
+        <MissingTableNotice table={imagesResult.table} />
+      ) : imagesResult.status === "error" ? (
+        <Notice tone="danger" title="Couldn't load uploaded images">
+          {imagesResult.message}
+        </Notice>
+      ) : imageRows.length === 0 ? null : (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Uploaded Images</h2>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {imageRows.map((image) => (
+              <MobileImageCard key={image.id} image={image} />
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Mobile Photos Section */}
       {photosResult.status === "missing-table" ? (
         <MissingTableNotice table={photosResult.table} />
@@ -59,9 +86,9 @@ export default async function GalleryPage() {
         <Notice tone="danger" title="Couldn't load mobile photos">
           {photosResult.message}
         </Notice>
-      ) : photoRows.length === 0 && galleryRows.length === 0 ? (
+      ) : anyRows === 0 ? (
         <Notice title="No images yet">
-          Photos synced from the mobile app will appear here.
+          Photos synced or uploaded from the mobile app will appear here.
         </Notice>
       ) : photoRows.length > 0 ? (
         <div className="space-y-4">
@@ -89,6 +116,9 @@ function GalleryCard({ item }: { item: GalleryItem }) {
           fill
           sizes="(min-width: 1024px) 320px, (min-width: 640px) 45vw, 90vw"
           className="object-cover"
+          // A row can hold any URL. Optimizing an unconfigured host throws and
+          // takes the page down with it, so serve those as-is instead.
+          unoptimized={!isOptimizableImage(image_url)}
         />
       </div>
 
@@ -112,9 +142,60 @@ function GalleryCard({ item }: { item: GalleryItem }) {
   );
 }
 
+function MobileImageCard({ image }: { image: MobileImage }) {
+  const { url, downloadUrl, filename, filesize, created_at } = image;
+
+  return (
+    <li className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="relative aspect-square bg-zinc-100 dark:bg-zinc-800">
+        <ImageViewer
+          src={url}
+          downloadUrl={downloadUrl}
+          filename={filename}
+          filesize={filesize}
+        >
+          <Image
+            src={url}
+            alt={filename}
+            fill
+            sizes="(min-width: 1024px) 320px, (min-width: 640px) 45vw, 90vw"
+            className="object-cover"
+            unoptimized={!isOptimizableImage(url)}
+          />
+        </ImageViewer>
+      </div>
+
+      <div className="space-y-1 p-4">
+        <h3 className="truncate text-sm font-semibold" title={filename}>
+          {filename}
+        </h3>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {formatBytes(filesize)}
+        </p>
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <time
+            dateTime={created_at}
+            className="text-xs text-zinc-500 dark:text-zinc-400"
+          >
+            {formatDate(created_at)}
+          </time>
+          <a
+            href={downloadUrl}
+            download={filename}
+            aria-label={`Download ${filename}`}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            <DownloadIcon className="size-3.5" />
+            Download
+          </a>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function MobilePhotoCard({ photo }: { photo: MobilePhoto }) {
   const { display_name, synced_at, size } = photo;
-  const sizeInMB = (size / (1024 * 1024)).toFixed(2);
 
   return (
     <li className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -130,7 +211,7 @@ function MobilePhotoCard({ photo }: { photo: MobilePhoto }) {
           {display_name}
         </h3>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {sizeInMB} MB
+          {formatBytes(size)}
         </p>
         <time
           dateTime={synced_at}

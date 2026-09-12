@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MOBILE_IMAGES_BUCKET, MOBILE_IMAGES_TABLE } from "@/lib/data/images";
 
 export const runtime = "nodejs";
 
@@ -167,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     // Upload binary image to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from("mobile-images")
+      .from(MOBILE_IMAGES_BUCKET)
       .upload(storagePath, binaryData, {
         contentType: body.mimeType,
         upsert: false,
@@ -185,46 +186,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Store metadata in database
+    // Store metadata in database. Column names are the table's, not the payload's:
+    // the bytes live in storage, so only storage_path points at them.
     const now = Math.floor(Date.now() / 1000);
-    const { data, error: dbError } = await supabase
-      .from("mobile_photos")
+    const { data: row, error: dbError } = await supabase
+      .from(MOBILE_IMAGES_TABLE)
       .insert({
         filename: body.filename,
         filepath: body.filepath,
         filesize: body.filesize,
-        mimeType: body.mimeType,
+        mime_type: body.mimeType,
         storage_path: storagePath,
         timestamp: body.timestamp,
         date_added: now,
         date_modified: now,
-      } as any)
-      .select("id, filename, filesize, mimeType, timestamp");
+      })
+      .select("id, filename, filesize, mime_type, timestamp")
+      .single();
 
-    if (dbError) {
+    if (dbError || !row) {
       console.error("Database error:", dbError);
       // Attempt cleanup from storage if database insert fails
-      await supabase.storage.from("mobile-images").remove([storagePath]);
+      await supabase.storage.from(MOBILE_IMAGES_BUCKET).remove([storagePath]);
       return NextResponse.json(
         {
           success: false,
           message: "Failed to store image metadata",
-          error: dbError.message,
+          error: dbError?.message ?? "Insert returned no row",
         },
         { status: 500 }
       );
     }
 
+    const { data: publicUrl } = supabase.storage
+      .from(MOBILE_IMAGES_BUCKET)
+      .getPublicUrl(storagePath);
+
     return NextResponse.json(
       {
         success: true,
         message: "Image uploaded successfully",
-        imageId: data?.[0]?.id,
-        filename: data?.[0]?.filename,
-        filesize: data?.[0]?.filesize,
-        mimeType: data?.[0]?.mimeType,
-        timestamp: data?.[0]?.timestamp,
-        storageUrl: `${process.env.SUPABASE_URL}/storage/v1/object/public/mobile-images/${storagePath}`,
+        imageId: row.id,
+        filename: row.filename,
+        filesize: row.filesize,
+        mimeType: row.mime_type,
+        timestamp: row.timestamp,
+        storageUrl: publicUrl.publicUrl,
       },
       { status: 201 }
     );

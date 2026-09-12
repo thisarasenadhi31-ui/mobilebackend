@@ -1,28 +1,14 @@
 import type { NextConfig } from "next";
+import { remoteImagePatterns } from "./src/lib/images";
 
 /**
- * Gallery images are served from this project's Supabase Storage bucket.
- * Add further hostnames here if images are hosted elsewhere.
+ * The image allowlist lives in src/lib/images.ts so the gallery can check a URL
+ * against the same patterns before handing it to next/image. Add further
+ * hostnames there, not here.
  */
-const supabaseHost = (() => {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname;
-  } catch {
-    return null;
-  }
-})();
-
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: supabaseHost
-      ? [
-          {
-            protocol: "https",
-            hostname: supabaseHost,
-            pathname: "/storage/v1/object/public/**",
-          },
-        ]
-      : [],
+    remotePatterns: remoteImagePatterns,
   },
 };
 

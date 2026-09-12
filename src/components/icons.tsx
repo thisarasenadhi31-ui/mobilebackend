@@ -29,6 +29,24 @@ export function ImageIcon({ className }: IconProps) {
   );
 }
 
+export function DownloadIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
 export function ArrowRightIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

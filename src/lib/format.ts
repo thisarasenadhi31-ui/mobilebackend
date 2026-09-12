@@ -28,3 +28,19 @@ export function timeAgo(iso: string) {
 
 /** Fixed UTC timestamp, so server and client markup always agree. */
 export const formatDate = (iso: string) => `${ABSOLUTE.format(new Date(iso))} UTC`;
+
+const BYTE_UNITS = ["B", "KB", "MB", "GB"];
+
+/** "1.4 MB". Scales to the unit that keeps the number readable. */
+export function formatBytes(bytes: number) {
+  let value = bytes;
+  let unit = 0;
+
+  while (value >= 1024 && unit < BYTE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  // Whole bytes never need a decimal; larger units read better with one.
+  return `${unit === 0 ? value : value.toFixed(1)} ${BYTE_UNITS[unit]}`;
+}
